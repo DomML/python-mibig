@@ -5,6 +5,7 @@ from Bio.SeqRecord import SeqRecord
 from helperlibs.bio import seqio
 
 from mibig.errors import MibigError
+import utils_modules
 
 INVALID_CHARS = re.compile(r"[!?,;:=+*&^%$#@ \t\n\r\\\/\[\]{}()<>|~`'\"]")
 
@@ -23,17 +24,24 @@ class CDS:
     _translation: str | None
     _translation_length: int = 0
 
-    def __init__(self, locus_tag: str | None = None, gene: str | None = None, protein_id: str | None = None, translation: str | None = None,
-                 nrps_pks: str | None = None, product: str | None = None) -> None:
+    def __init__(self, locus_tag: str = None, gene: str = None, protein_id: str = None, \
+                 translation: str = None, nrps_pks: str = None, product: str = None, \
+                    location: list[int] | None = None) -> None:
+
         if not any([locus_tag, gene, protein_id]):
             raise MibigError("At least one of locus_tag, gene, or protein_id is required")
+        
+        if not (location is None or len(location) == 2):
+            raise MibigError("Location should be a list of two integers")
 
         self._locus_tag = _sanitise_identifier(locus_tag)
         self._gene = _sanitise_identifier(gene)
         self._protein_id = _sanitise_identifier(protein_id)
         self.translation = translation
+        #### By DomML
         self.nrps_pks = nrps_pks
         self.product = product
+        self.location = location
 
     @property
     def name(self) -> str:
@@ -104,6 +112,8 @@ class Record:
         ncbi_tax_id = None
         organism = None
         cdses = []
+        domains = []
+
         for feature in record.features:
             if feature.type == "source":
                 if "organism" in feature.qualifiers:
@@ -113,18 +123,27 @@ class Record:
                         if db_xref.startswith("taxon:"):
                             ncbi_tax_id = int(db_xref.split(":")[1])
 
-            if feature.type != "CDS":
-                continue
+            if feature.type == "CDS":
+                locus_tag = feature.qualifiers.get("locus_tag", [None])[0]
+                gene = feature.qualifiers.get("gene", [None])[0]
+                protein_id = feature.qualifiers.get("protein_id", [None])[0]
+                translation = feature.qualifiers.get("translation", [None])[0]
+                nrps_pks = feature.qualifiers.get("NRPS_PKS", [None])[0]
+                product = feature.qualifiers.get("product", [None])[0]
+                location = feature.location
+                print(location)
 
-            locus_tag = feature.qualifiers.get("locus_tag", [None])[0]
-            gene = feature.qualifiers.get("gene", [None])[0]
-            protein_id = feature.qualifiers.get("protein_id", [None])[0]
-            translation = feature.qualifiers.get("translation", [None])[0]
-            nrps_pks = feature.qualifiers.get("NRPS_PKS", [None])[0]
-            product = feature.qualifiers.get("product", [None])[0]
-
-            cdses.append(CDS(locus_tag=locus_tag, gene=gene, protein_id=protein_id, translation=translation,
+                cdses.append(CDS(locus_tag=locus_tag, gene=gene, protein_id=protein_id, translation=translation,
                              nrps_pks=nrps_pks, product=product))
+            
+            if feature.type == "aSDomain":
+                domains = feature.qualifiers["domain"]
+                locus_tag = feature.qualifiers["locus_tag"][0]
+                starterModule = True if "starterModule" in feature.qualifiers else False
+                final_module = True if "finalModule" in feature.qualifiers else False
+
+                domains.append(aSModule(domains=domains, locus_tag=locus_tag, starterModule=starterModule,
+                                    final_module=final_module))
 
         return cls(id=record.id, cdses=cdses, seq_len=len(record.seq), ncbi_tax_id=ncbi_tax_id, organism=organism)
 
