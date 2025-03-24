@@ -23,7 +23,8 @@ class CDS:
     _translation: str | None
     _translation_length: int = 0
 
-    def __init__(self, locus_tag: str | None = None, gene: str | None = None, protein_id: str | None = None, translation: str | None = None) -> None:
+    def __init__(self, locus_tag: str | None = None, gene: str | None = None, protein_id: str | None = None, translation: str | None = None,
+                 nrps_pks: str | None = None, product: str | None = None) -> None:
         if not any([locus_tag, gene, protein_id]):
             raise MibigError("At least one of locus_tag, gene, or protein_id is required")
 
@@ -31,6 +32,8 @@ class CDS:
         self._gene = _sanitise_identifier(gene)
         self._protein_id = _sanitise_identifier(protein_id)
         self.translation = translation
+        self.nrps_pks = nrps_pks
+        self.product = product
 
     @property
     def name(self) -> str:
@@ -117,8 +120,11 @@ class Record:
             gene = feature.qualifiers.get("gene", [None])[0]
             protein_id = feature.qualifiers.get("protein_id", [None])[0]
             translation = feature.qualifiers.get("translation", [None])[0]
+            nrps_pks = feature.qualifiers.get("NRPS_PKS", [None])[0]
+            product = feature.qualifiers.get("product", [None])[0]
 
-            cdses.append(CDS(locus_tag=locus_tag, gene=gene, protein_id=protein_id, translation=translation))
+            cdses.append(CDS(locus_tag=locus_tag, gene=gene, protein_id=protein_id, translation=translation,
+                             nrps_pks=nrps_pks, product=product))
 
         return cls(id=record.id, cdses=cdses, seq_len=len(record.seq), ncbi_tax_id=ncbi_tax_id, organism=organism)
 
